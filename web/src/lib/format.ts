@@ -70,6 +70,7 @@ export const ACTION_LABEL: Record<string, string> = {
   "evidence.upload_rejected": "Upload rejected: hash mismatch",
   "artifact.viewed": "Artifact viewed",
   "artifact.downloaded": "Artifact downloaded",
+  "artifact.metadata_extracted": "File metadata extracted",
   "settings.updated": "Settings updated",
 }
 

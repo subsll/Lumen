@@ -11,6 +11,8 @@ import {
 } from "lucide-react"
 
 import { LumenMark } from "@/components/logo"
+import { SearchCommand } from "@/components/search-command"
+import { ThemeToggle } from "@/components/theme-toggle"
 import {
   Sidebar,
   SidebarContent,
@@ -65,6 +67,9 @@ export function AppSidebar({
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          <SidebarMenuItem className="mt-1">
+            <SearchCommand />
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
 
@@ -110,6 +115,9 @@ export function AppSidebar({
 
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <ThemeToggle />
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive("/settings")} tooltip="Settings">
               <Link href="/settings">

@@ -12,7 +12,6 @@ import {
   SettingsIcon,
 } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import {
   Command,
   CommandDialog,
@@ -22,11 +21,13 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
+import { SidebarMenuButton, useSidebar } from "@/components/ui/sidebar"
 import { get } from "@/lib/client"
 import type { SearchResults } from "@/lib/types"
 
 export function SearchCommand() {
   const router = useRouter()
+  const { isMobile, setOpenMobile } = useSidebar()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<SearchResults>({ cases: [], evidence: [] })
@@ -63,6 +64,7 @@ export function SearchCommand() {
   const go = (href: string) => {
     setOpen(false)
     setQuery("")
+    if (isMobile) setOpenMobile(false)
     router.push(href)
   }
   const hasQuery = query.trim().length > 0
@@ -70,17 +72,20 @@ export function SearchCommand() {
 
   return (
     <>
-      <Button
+      <SidebarMenuButton
         variant="outline"
-        className="h-8 w-full max-w-sm justify-start gap-2 text-muted-foreground"
+        tooltip="Search (⌘K)"
+        // Keep it looking like a field on hover: same background, slightly stronger outline.
+        className="text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-[0_0_0_1px_var(--ring)] data-open:hover:bg-background"
         onClick={() => setOpen(true)}
+        aria-keyshortcuts="Meta+K Control+K"
       >
         <SearchIcon />
-        <span className="flex-1 text-left">Search cases, evidence, hashes…</span>
-        <kbd className="pointer-events-none hidden rounded border bg-muted px-1.5 font-mono text-[10px] sm:inline">
+        <span className="flex-1">Search…</span>
+        <kbd className="pointer-events-none rounded-sm border bg-muted px-1.5 font-mono text-[10px] group-data-[collapsible=icon]:hidden">
           ⌘K
         </kbd>
-      </Button>
+      </SidebarMenuButton>
       <CommandDialog open={open} onOpenChange={setOpen} className="sm:max-w-xl" title="Search Lumen" description="Search cases, evidence and hashes">
         <Command shouldFilter={false}>
           <CommandInput

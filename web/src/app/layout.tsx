@@ -2,10 +2,7 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 
 import { AppSidebar } from "@/components/app-sidebar"
-import { SearchCommand } from "@/components/search-command"
 import { ThemeProvider } from "@/components/theme-provider"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -41,15 +38,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             <SidebarProvider>
               <AppSidebar openCases={open} investigator={investigator} version={settings.version} />
               <SidebarInset>
-                <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur">
-                  <SidebarTrigger className="-ml-1" />
-                  <Separator orientation="vertical" className="mr-1 data-[orientation=vertical]:h-4" />
-                  <div className="flex flex-1 items-center">
-                    <SearchCommand />
-                  </div>
-                  <ThemeToggle />
-                </header>
-                <main className="flex flex-1 flex-col gap-6 p-4 md:p-6 lg:p-8">{children}</main>
+                {/* No top bar: on desktop the sidebar collapses via its rail or ⌘B; on phones this opens it. */}
+                <SidebarTrigger className="fixed top-3 left-3 z-20 border bg-background/90 shadow-sm backdrop-blur md:hidden" />
+                <main className="flex flex-1 flex-col gap-6 p-4 pt-14 md:p-6 lg:p-8">{children}</main>
               </SidebarInset>
             </SidebarProvider>
           </TooltipProvider>

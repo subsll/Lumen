@@ -6,6 +6,7 @@ import {
   EyeIcon,
   FilePlusIcon,
   FolderPlusIcon,
+  ListTreeIcon,
   type LucideIcon,
   PencilIcon,
   ShieldAlertIcon,
@@ -34,6 +35,7 @@ const ICONS: Record<string, { icon: LucideIcon; tone?: string }> = {
   "evidence.upload_rejected": { icon: XCircleIcon, tone: "text-red-600 dark:text-red-400" },
   "artifact.viewed": { icon: EyeIcon },
   "artifact.downloaded": { icon: DownloadIcon },
+  "artifact.metadata_extracted": { icon: ListTreeIcon },
   "settings.updated": { icon: SettingsIcon },
 }
 
@@ -59,6 +61,10 @@ function summary(e: CustodyEvent): string | null {
     case "artifact.viewed":
     case "artifact.downloaded":
       return String(d.filename ?? "")
+    case "artifact.metadata_extracted":
+      return d.status === "extracted"
+        ? `${d.filename} · ${d.field_count} ${d.field_count === 1 ? "field" : "fields"} via ${d.tool} ${d.tool_version}`
+        : `${d.filename} · ${d.status}${d.error ? `: ${d.error}` : ""}`
     case "evidence.integrity_verified":
     case "evidence.integrity_failed": {
       const arts = (d.artifacts as { ok: boolean }[]) ?? []
