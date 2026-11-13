@@ -1,0 +1,127 @@
+# Lumen – OSINT Evidence Management System by Lumen Forensics
+#
+#   ./scripts/setup.sh      # once: generates .env with your master key
+#   docker compose up -d --build
+#   open http://localhost:8080
+#
+# Network layout (only the proxy is reachable from your machine, on localhost):
+#
+#   browser ──► proxy ──► web ──┐
+#                   └──► api ◄──┘
+#                         ├──► vault   (vault network: internal, no internet)
+#                         ├──► db      (data network: internal, no internet)
+#                         ├──► capture (capture network: internet egress only)
+#                         └──► metadata (metadata network: internal, no internet)
+
+name: lumen
+
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+
+services:
+  proxy:
+    <<: *hardening
+    image: caddy:2-alpine
+    cap_add: ["NET_BIND_SERVICE"]
+    ports:
+      - "127.0.0.1:${LUMEN_PORT:-8080}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on: [web, api]
+    networks: [edge]
+
+  web:
+    <<: *hardening
+    build: ./web
+    environment:
+      API_INTERNAL_URL: http://api:8080
+    depends_on: [api]
+    networks: [edge]
+
+  api:
+    <<: *hardening
+    build: { context: ./backend, target: api }
+    read_only: true
+    environment:
+      DATABASE_URL: postgres://lumen:${POSTGRES_PASSWORD:?run ./scripts/setup.sh first}@db:5432/lumen
+      VAULT_URL: http://vault:9000
+      VAULT_TOKEN: ${VAULT_TOKEN:?run ./scripts/setup.sh first}
+      CAPTURE_URL: http://capture:9100
+      METADATA_URL: http://metadata:9200
+      METADATA_TOKEN: ${METADATA_TOKEN:-}
+      METADATA_MAX_BYTES: ${METADATA_MAX_BYTES:-1073741824}
+      VERIFY_INTERVAL: ${VERIFY_INTERVAL:-24h}
+      LUMEN_ALLOWED_HOSTS: ${LUMEN_ALLOWED_HOSTS:-localhost,127.0.0.1,api}
+    depends_on:
+      db: { condition: service_healthy }
+      vault: { condition: service_started }
+      capture: { condition: service_started }
+      metadata: { condition: service_started }
+    networks: [edge, data, vault, capture, metadata]
+
+  vault:
+    <<: *hardening
+    build: { context: ./backend, target: vault }
+    read_only: true
+    environment:
+      LUMEN_MASTER_KEY: ${LUMEN_MASTER_KEY:?run ./scripts/setup.sh first}
+      VAULT_TOKEN: ${VAULT_TOKEN:?run ./scripts/setup.sh first}
+    volumes:
+      - vault-data:/data
+    networks: [vault]
+
+  capture:
+    <<: *hardening
+    build: { context: ./backend, target: capture }
+    init: true
+    shm_size: 1gb
+    tmpfs: ["/tmp"]
+    environment:
+      CAPTURE_USER_AGENT: ${CAPTURE_USER_AGENT:-}
+      CAPTURE_ALLOW_PRIVATE: ${CAPTURE_ALLOW_PRIVATE:-false}
+    networks: [capture]
+
+  # ExifTool parses untrusted files, so it gets no internet, no vault and no database.
+  metadata:
+    <<: *hardening
+    build: { context: ./backend, target: metadata }
+    read_only: true
+    init: true
+    tmpfs: ["/tmp:size=1100m,mode=1777"]
+    mem_limit: 2g
+    pids_limit: 128
+    environment:
+      METADATA_TOKEN: ${METADATA_TOKEN:-}
+      METADATA_MAX_BYTES: ${METADATA_MAX_BYTES:-1073741824}
+    networks: [metadata]
+
+  db:
+    restart: unless-stopped
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: lumen
+      POSTGRES_DB: lumen
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run ./scripts/setup.sh first}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lumen -d lumen"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks: [data]
+
+networks:
+  edge: {}
+  capture: {}
+  vault: { internal: true }
+  data: { internal: true }
+  metadata: { internal: true }
+
+volumes:
+  vault-data:
+  db-data:
+  caddy-data:

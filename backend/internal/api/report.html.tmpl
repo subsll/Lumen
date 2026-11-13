@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chain of Custody Report – {{.Case.Reference}}</title>
+<style>
+  :root { --ink:#111827; --muted:#6b7280; --line:#e5e7eb; --accent:#4f46e5; }
+  * { box-sizing: border-box; }
+  body { font: 13px/1.5 -apple-system, "Segoe UI", Inter, Helvetica, Arial, sans-serif; color: var(--ink); margin: 0; padding: 40px; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid var(--ink); padding-bottom: 16px; margin-bottom: 24px; }
+  .brand { font-weight: 700; font-size: 18px; letter-spacing: .02em; }
+  .brand small { display: block; font-weight: 400; font-size: 11px; color: var(--muted); letter-spacing: 0; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 32px 0 8px; text-transform: uppercase; letter-spacing: .06em; }
+  .muted { color: var(--muted); }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; word-break: break-all; }
+  dl { display: grid; grid-template-columns: 180px 1fr; gap: 4px 16px; margin: 0; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .exhibit { border: 1px solid var(--line); border-radius: 6px; padding: 12px 16px; margin-bottom: 12px; page-break-inside: avoid; }
+  .exhibit h3 { margin: 0 0 8px; font-size: 14px; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; border: 1px solid var(--line); }
+  .ok { color: #047857; border-color: #a7f3d0; background: #ecfdf5; }
+  .bad { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+  .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 56px; }
+  .sign div { border-top: 1px solid var(--ink); padding-top: 6px; color: var(--muted); }
+  footer { margin-top: 40px; font-size: 11px; color: var(--muted); }
+  @media print { body { padding: 0; } a { color: inherit; text-decoration: none; } }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Chain of Custody Report</h1>
+    <div class="muted">{{.Case.Reference}} · {{.Case.Title}}</div>
+  </div>
+  <div class="brand" style="text-align:right">LUMEN<small>by Lumen Forensics · OSINT Evidence Management System</small></div>
+</header>
+
+<h2>Case</h2>
+<dl>
+  <dt>Reference</dt><dd>{{.Case.Reference}}</dd>
+  <dt>Title</dt><dd>{{.Case.Title}}</dd>
+  <dt>Status</dt><dd>{{upper .Case.Status}}</dd>
+  <dt>Priority</dt><dd>{{.Case.Priority}}</dd>
+  <dt>Opened</dt><dd>{{ts .Case.CreatedAt}}</dd>
+  {{if .Case.Description}}<dt>Description</dt><dd>{{.Case.Description}}</dd>{{end}}
+  <dt>Evidence items</dt><dd>{{len .Evidence}} ({{.ArtifactCount}} files, {{bytes .TotalBytes}})</dd>
+  <dt>Report generated</dt><dd>{{ts .GeneratedAt}} by {{.GeneratedBy}}</dd>
+  <dt>Custody chain</dt><dd>
+    {{if .Chain.Valid}}<span class="badge ok">Intact</span> {{.Chain.Checked}} events verified · head <span class="mono">{{.Chain.HeadHash}}</span>
+    {{else}}<span class="badge bad">BROKEN at event #{{.Chain.BrokenAt}}</span> {{.Chain.Reason}}{{end}}
+  </dd>
+</dl>
+
+<h2>Evidence register</h2>
+{{range .Evidence}}
+<div class="exhibit">
+  <h3>{{.ExhibitRef}} · {{.Title}}</h3>
+  <dl>
+    <dt>Type</dt><dd>{{if eq .Kind "web_capture"}}Web capture{{else}}File{{end}}</dd>
+    {{if .Source}}<dt>Source</dt><dd class="mono">{{.Source}}</dd>{{end}}
+    <dt>Acquired</dt><dd>{{ts .AcquiredAt}}</dd>
+    <dt>Method</dt><dd>{{.AcquisitionMethod}}</dd>
+    {{if .Location}}<dt>Location</dt><dd>{{.Location}}</dd>{{end}}
+    {{if .Description}}<dt>Description</dt><dd>{{.Description}}</dd>{{end}}
+    <dt>Integrity</dt><dd>
+      {{if eq .IntegrityStatus "verified"}}<span class="badge ok">Verified</span>{{else if eq .IntegrityStatus "failed"}}<span class="badge bad">FAILED</span>{{else}}<span class="badge">Unverified</span>{{end}}
+      <span class="muted">last checked {{tsp .LastVerifiedAt}}</span></dd>
+  </dl>
+  <table>
+    <tr><th>File</th><th>Size</th><th>Hashes</th></tr>
+    {{range .Files}}
+    <tr>
+      <td>{{.Filename}}<div class="muted">{{.Role}} · {{.MimeType}}</div></td>
+      <td>{{bytes .SizeBytes}}</td>
+      <td class="mono">SHA-256 {{.SHA256}}<br>SHA-1 {{.SHA1}}<br>MD5 {{.MD5}}</td>
+    </tr>
+    {{end}}
+  </table>
+</div>
+{{else}}<p class="muted">No evidence registered.</p>{{end}}
+
+<h2>Custody log</h2>
+<table>
+  <tr><th>#</th><th>Time (UTC)</th><th>Action</th><th>Exhibit</th><th>Actor</th><th>Event hash</th></tr>
+  {{range .Events}}
+  <tr>
+    <td>{{.Seq}}</td>
+    <td>{{ts .OccurredAt}}</td>
+    <td>{{action .Action}}</td>
+    <td>{{if .ExhibitRef}}{{.ExhibitRef}}{{else}}–{{end}}</td>
+    <td>{{.Actor}}</td>
+    <td class="mono" title="{{.Hash}}">{{short .Hash}}</td>
+  </tr>
+  {{end}}
+</table>
+
+<div class="sign">
+  <div>Prepared by (name, signature)</div>
+  <div>Date</div>
+  <div>Received by (name, signature)</div>
+  <div>Date</div>
+</div>
+
+<footer>
+  Generated by Lumen {{.Version}} (Lumen Forensics). Hashes are computed on ingestion and re-verified on
+  a schedule. Full event data, including each event's previous-hash link, is in custody-log.jsonl.
+</footer>
+</body>
+</html>

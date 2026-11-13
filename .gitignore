@@ -1,0 +1,34 @@
+# Secrets: never commit. .env holds the vault master key and service tokens.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+id_*
+!id_*.pub
+
+# Local tooling and OS files
+.gstack/
+.claude/
+.DS_Store
+*.log
+
+# Evidence exports and local data (may contain case material)
+*_export_*.zip
+data/
+
+# Go
+backend/bin/
+/backend/api
+/backend/vault
+/backend/capture
+/backend/metadata
+/backend/lumen-verify
+
+# Web
+web/node_modules/
+web/.next/
+web/out/
+web/next-env.d.ts
+web/tsconfig.tsbuildinfo
