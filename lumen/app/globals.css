@@ -1,0 +1,93 @@
+:root {
+  --bg: #080d10;
+  --fg: #ffffff;
+  --muted: #a3a8ab;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { background: var(--bg); color: var(--fg); }
+
+body {
+  font-family: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+.page {
+  position: relative;
+  min-height: 100vh;
+  padding: 2.5rem 2.75rem;
+  overflow: hidden;
+}
+
+.brand {
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  margin-bottom: 2rem;
+}
+
+
+.hero {
+  position: absolute;
+  left: 2.75rem;
+  bottom: 4.5rem;
+  max-width: 52rem;
+  z-index: 1;
+}
+
+.hero h1 {
+  font-size: clamp(3.5rem, 9vw, 8.5rem);
+  font-weight: 300;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.hero p {
+  margin-top: 2.5rem;
+  max-width: 48rem;
+  font-size: clamp(1.1rem, 1.7vw, 1.75rem);
+  line-height: 1.8;
+  font-weight: 300;
+  color: var(--muted);
+}
+
+.actions { display: flex; align-items: center; gap: 3rem; margin-top: 3.5rem; }
+.btn-primary {
+  background: var(--fg); color: #000; border-radius: 12px;
+  padding: 1.15rem 1.9rem; font-size: 1.35rem; font-weight: 500; text-decoration: none;
+  transition: transform .2s, opacity .2s;
+}
+.btn-primary:hover { transform: translateY(-1px); opacity: .9; }
+.btn-ghost { color: var(--muted); font-size: 1.5rem; font-weight: 300; text-decoration: none; transition: color .2s; }
+.btn-ghost:hover { color: var(--fg); }
+
+.orb {
+  position: absolute;
+  top: 6%;
+  right: 8%;
+  width: min(44vw, 720px);
+  pointer-events: none;
+}
+.orb pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: min(1.15vw, 18px);
+  line-height: 1.32;
+  letter-spacing: 0.32em;
+  color: #e9eef0;
+  white-space: pre;
+  user-select: none;
+}
+
+@media (max-width: 900px) {
+  .page { padding: 1.5rem 1rem; }
+  .orb { position: relative; top: auto; right: auto; width: 100%; margin: 2rem auto 0; display: flex; justify-content: center; }
+  .orb pre { font-size: 2.1vw; }
+  .hero { position: relative; left: auto; bottom: auto; margin-top: 2rem; }
+  .actions { gap: 1.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary { transition: none; }
+}
