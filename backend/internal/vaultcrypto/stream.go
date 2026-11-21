@@ -28,6 +28,12 @@ var magic = []byte("LUMENV1\x00")
 
 var ErrCorrupt = errors.New("vault: blob is corrupt or has been tampered with")
 
+// ErrWrongKey means the blob's data key is not wrapped with the given master key.
+var ErrWrongKey = errors.New("vault: cannot unwrap data key (wrong master key?)")
+
+// HeaderSize is the fixed size of magic, wrap nonce and wrapped data key.
+const HeaderSize = 8 + 12 + 48
+
 func newGCM(key []byte) (cipher.AEAD, error) {
 	if len(key) != 32 {
 		return nil, fmt.Errorf("vault: key must be 32 bytes, got %d", len(key))
@@ -121,7 +127,7 @@ func Decrypt(w io.Writer, r io.Reader, kek []byte) error {
 	wrapNonce := head[len(magic) : len(magic)+12]
 	dek, err := kekAEAD.Open(nil, wrapNonce, head[len(magic)+12:], magic)
 	if err != nil {
-		return fmt.Errorf("vault: cannot unwrap data key (wrong master key?): %w", ErrCorrupt)
+		return fmt.Errorf("%w: %w", ErrWrongKey, ErrCorrupt)
 	}
 	aead, err := newGCM(dek)
 	if err != nil {
@@ -157,4 +163,50 @@ func Decrypt(w io.Writer, r io.Reader, kek []byte) error {
 			return nil
 		}
 	}
+}
+
+// Rewrap re-wraps the blob's data key from oldKEK to newKEK, in place. Only the
+// 60 bytes after the magic change; the payload and its hashes stay the same.
+// It reports false if the blob is already wrapped with newKEK.
+func Rewrap(f interface {
+	io.ReaderAt
+	io.WriterAt
+}, oldKEK, newKEK []byte) (bool, error) {
+	oldAEAD, err := newGCM(oldKEK)
+	if err != nil {
+		return false, err
+	}
+	newAEAD, err := newGCM(newKEK)
+	if err != nil {
+		return false, err
+	}
+	head := make([]byte, HeaderSize)
+	if _, err := f.ReadAt(head, 0); err != nil {
+		return false, ErrCorrupt
+	}
+	if string(head[:len(magic)]) != string(magic) {
+		return false, ErrCorrupt
+	}
+	nonce, wrapped := head[len(magic):len(magic)+12], head[len(magic)+12:]
+	if dek, err := newAEAD.Open(nil, nonce, wrapped, magic); err == nil {
+		clear(dek)
+		return false, nil
+	}
+	dek, err := oldAEAD.Open(nil, nonce, wrapped, magic)
+	if err != nil {
+		return false, ErrWrongKey
+	}
+	defer clear(dek)
+	fresh := make([]byte, 12)
+	if _, err := rand.Read(fresh); err != nil {
+		return false, err
+	}
+	out := append(fresh, newAEAD.Seal(nil, fresh, dek, magic)...)
+	if len(out) != HeaderSize-len(magic) {
+		return false, errors.New("vault: unexpected header size")
+	}
+	if _, err := f.WriteAt(out, int64(len(magic))); err != nil {
+		return false, err
+	}
+	return true, nil
 }

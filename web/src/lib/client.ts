@@ -4,6 +4,13 @@ import { createSHA256 } from "hash-wasm"
 
 const HEADERS = { "X-Lumen-Request": "1" }
 
+/** The vault locked (idle timeout or another tab): show the unlock screen. */
+function checkLocked(res: Response, data: { locked?: boolean }) {
+  // Full reload: the root layout must re-render to swap the app for the unlock screen.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+  if (res.status === 401 && data.locked) window.location.assign("/unlock")
+}
+
 /** JSON request from the browser. Writes carry X-Lumen-Request (CSRF guard). */
 export async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
@@ -12,6 +19,7 @@ export async function send<T>(method: string, path: string, body?: unknown): Pro
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   const data = await res.json().catch(() => ({}))
+  checkLocked(res, data)
   if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`)
   return data as T
 }
@@ -19,6 +27,7 @@ export async function send<T>(method: string, path: string, body?: unknown): Pro
 export async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(path, { signal })
   const data = await res.json().catch(() => ({}))
+  checkLocked(res, data)
   if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`)
   return data as T
 }
@@ -54,10 +63,12 @@ export function uploadWithProgress<T>(
     xhr.setRequestHeader("X-Lumen-Request", "1")
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total)
     xhr.onload = () => {
-      let data: { error?: string } = {}
+      let data: { error?: string; locked?: boolean } = {}
       try {
         data = JSON.parse(xhr.responseText)
       } catch {}
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      if (xhr.status === 401 && data.locked) window.location.assign("/unlock")
       if (xhr.status >= 200 && xhr.status < 300) resolve(data as T)
       else reject(new Error(data.error ?? `Upload failed (${xhr.status})`))
     }

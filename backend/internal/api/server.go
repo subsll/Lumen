@@ -28,6 +28,10 @@ type Server struct {
 	HTTP       *http.Client
 	// AllowedHosts are the Host header values accepted (without port).
 	AllowedHosts map[string]bool
+	// Lock enforces hardware-key sessions once a security key is enrolled.
+	Lock *Lock
+	// VerifyInterval is how often stored evidence is re-hashed.
+	VerifyInterval time.Duration
 }
 
 func (s *Server) Routes() http.Handler {
@@ -60,7 +64,14 @@ func (s *Server) Routes() http.Handler {
 
 	m.HandleFunc("GET /api/custody", s.listCustody)
 	m.HandleFunc("GET /api/custody/verify", s.verifyChain)
-	return logRequests(s.guard(m))
+
+	m.HandleFunc("GET /api/vault", s.vaultStatus)
+	m.HandleFunc("POST /api/vault/unlock", s.unlockVault)
+	m.HandleFunc("POST /api/vault/lock", s.lockVault)
+	m.HandleFunc("POST /api/vault/keys", s.addVaultKey)
+	m.HandleFunc("DELETE /api/vault/keys/{id}", s.removeVaultKey)
+	m.HandleFunc("POST /api/vault/recovery", s.rotateRecoveryCode)
+	return logRequests(s.guard(s.requireUnlocked(m)))
 }
 
 // guard protects an unauthenticated, locally hosted API:
@@ -132,7 +143,12 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeErr(w http.ResponseWriter, err error) {
 	var ae *apiError
+	var ve *vaultclient.StatusError
 	switch {
+	case errors.Is(err, vaultclient.ErrLocked):
+		writeLocked(w)
+	case errors.As(err, &ve) && ve.Code >= 400 && ve.Code < 500:
+		writeJSON(w, ve.Code, map[string]string{"error": ve.Message})
 	case errors.As(err, &ae):
 		writeJSON(w, ae.Status, map[string]string{"error": ae.Message})
 	case errors.Is(err, pgx.ErrNoRows):

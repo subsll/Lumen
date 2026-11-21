@@ -6,7 +6,10 @@ import {
   EyeIcon,
   FilePlusIcon,
   FolderPlusIcon,
+  KeyRoundIcon,
   ListTreeIcon,
+  LockIcon,
+  LockOpenIcon,
   type LucideIcon,
   PencilIcon,
   ShieldAlertIcon,
@@ -37,6 +40,13 @@ const ICONS: Record<string, { icon: LucideIcon; tone?: string }> = {
   "artifact.downloaded": { icon: DownloadIcon },
   "artifact.metadata_extracted": { icon: ListTreeIcon },
   "settings.updated": { icon: SettingsIcon },
+  "vault.unlocked": { icon: LockOpenIcon, tone: "text-amber-600 dark:text-amber-400" },
+  "vault.locked": { icon: LockIcon },
+  "vault.key_added": { icon: KeyRoundIcon, tone: "text-primary" },
+  "vault.key_removed": { icon: KeyRoundIcon, tone: "text-red-600 dark:text-red-400" },
+  "vault.recovery_code_created": { icon: KeyRoundIcon },
+  "vault.recovery_code_replaced": { icon: KeyRoundIcon },
+  "vault.master_key_replaced": { icon: KeyRoundIcon, tone: "text-primary" },
 }
 
 function summary(e: CustodyEvent): string | null {
@@ -74,6 +84,15 @@ function summary(e: CustodyEvent): string | null {
       return `${d.evidence_count} evidence items, ${d.artifact_count} files`
     case "evidence.upload_rejected":
       return String(d.filename ?? "")
+    case "vault.unlocked":
+      return d.method === "recovery code" ? "With the recovery code" : `With ${d.key}`
+    case "vault.locked":
+      return String(d.reason ?? "")
+    case "vault.master_key_replaced":
+      return d.status ? String(d.status) : "The previous master key no longer decrypts the vault"
+    case "vault.key_added":
+    case "vault.key_removed":
+      return String(d.key ?? "")
     default:
       return null
   }

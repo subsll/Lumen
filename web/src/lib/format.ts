@@ -72,6 +72,13 @@ export const ACTION_LABEL: Record<string, string> = {
   "artifact.downloaded": "Artifact downloaded",
   "artifact.metadata_extracted": "File metadata extracted",
   "settings.updated": "Settings updated",
+  "vault.unlocked": "Vault unlocked",
+  "vault.locked": "Vault locked",
+  "vault.key_added": "Security key registered",
+  "vault.key_removed": "Security key removed",
+  "vault.recovery_code_created": "Recovery code created",
+  "vault.recovery_code_replaced": "Recovery code replaced",
+  "vault.master_key_replaced": "Master key replaced",
 }
 
 export function actionLabel(action: string): string {

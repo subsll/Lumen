@@ -54,6 +54,7 @@ services:
       METADATA_TOKEN: ${METADATA_TOKEN:-}
       METADATA_MAX_BYTES: ${METADATA_MAX_BYTES:-1073741824}
       VERIFY_INTERVAL: ${VERIFY_INTERVAL:-24h}
+      LUMEN_IDLE_TIMEOUT: ${LUMEN_IDLE_TIMEOUT:-15m}
       LUMEN_ALLOWED_HOSTS: ${LUMEN_ALLOWED_HOSTS:-localhost,127.0.0.1,api}
     depends_on:
       db: { condition: service_healthy }
@@ -67,7 +68,9 @@ services:
     build: { context: ./backend, target: vault }
     read_only: true
     environment:
-      LUMEN_MASTER_KEY: ${LUMEN_MASTER_KEY:?run ./scripts/setup.sh first}
+      # Required until a security key is registered (Settings → Security keys).
+      # After that the vault starts locked, ignores this, and it should be removed from .env.
+      LUMEN_MASTER_KEY: ${LUMEN_MASTER_KEY:-}
       VAULT_TOKEN: ${VAULT_TOKEN:?run ./scripts/setup.sh first}
     volumes:
       - vault-data:/data

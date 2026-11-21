@@ -446,6 +446,9 @@ func (s *Server) VerifyEvidence(ctx context.Context, id, actor string) (string, 
 		c := artifactCheck{ArtifactID: a.ID, Role: a.Role, Filename: a.Filename, SHA256: a.SHA256}
 		res, err := s.Vault.Verify(ctx, a.SHA256)
 		switch {
+		case errors.Is(err, vaultclient.ErrLocked):
+			// A locked vault says nothing about integrity: record nothing.
+			return "", nil, err
 		case err != nil:
 			c.Error = err.Error()
 		case !res.OK:
@@ -507,7 +510,9 @@ func (s *Server) RunScheduledVerification(ctx context.Context, interval time.Dur
 		return 0, err
 	}
 	for _, id := range ids {
-		if _, _, err := s.VerifyEvidence(ctx, id, SystemActor); err != nil {
+		if _, _, err := s.VerifyEvidence(ctx, id, SystemActor); errors.Is(err, vaultclient.ErrLocked) {
+			return 0, nil // resumes after the next unlock
+		} else if err != nil {
 			return 0, err
 		}
 	}

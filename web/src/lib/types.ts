@@ -176,3 +176,28 @@ export interface CaptureSummary {
     queries: DnsQuery[]
   } | null
 }
+
+export interface VaultKey {
+  id: string
+  type: "webauthn" | "recovery"
+  label: string
+  credential_id?: string
+  rp_id?: string
+  salt?: string
+  created_at: string
+  last_used_at?: string | null
+}
+
+export interface VaultStatus {
+  /** A security key is registered: the vault starts locked and needs a session. */
+  protected: boolean
+  sealed: boolean
+  /** This browser may use Lumen (always true while unprotected). */
+  authenticated: boolean
+  /** LUMEN_MASTER_KEY is still configured on the vault. */
+  env_key_present: boolean
+  /** The master key was replaced but not every file is re-encrypted yet. */
+  rotation_pending: boolean
+  idle_timeout_seconds: number
+  keys: VaultKey[]
+}

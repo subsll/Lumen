@@ -61,6 +61,14 @@ func main() {
 	if err != nil || interval < time.Minute {
 		interval = 24 * time.Hour
 	}
+	s.VerifyInterval = interval
+
+	idle, err := time.ParseDuration(env("LUMEN_IDLE_TIMEOUT", "15m"))
+	if err != nil || idle < time.Minute {
+		idle = 15 * time.Minute
+	}
+	s.Lock = api.NewLock(idle)
+	go s.RunIdleLock(ctx)
 	go func() {
 		t := time.NewTicker(min(interval, time.Hour))
 		defer t.Stop()

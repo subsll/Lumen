@@ -30,37 +30,44 @@ var shaRe = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 type vault struct {
 	dir   string
-	kek   []byte
 	token string
+	keys  *keyState
 }
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(log)
 
-	kek, err := loadKey()
-	if err != nil {
-		log.Error("master key", "err", err)
-		os.Exit(1)
-	}
 	token := os.Getenv("VAULT_TOKEN")
 	if len(token) < 32 {
 		log.Error("VAULT_TOKEN must be set (at least 32 characters). Run ./scripts/setup.sh")
 		os.Exit(1)
 	}
-	v := &vault{dir: env("VAULT_DATA_DIR", "/data"), kek: kek, token: token}
+	v := &vault{dir: env("VAULT_DATA_DIR", "/data"), token: token}
 	for _, d := range []string{"blobs", "tmp"} {
 		if err := os.MkdirAll(filepath.Join(v.dir, d), 0o700); err != nil {
 			log.Error("data dir", "err", err)
 			os.Exit(1)
 		}
 	}
+	keys, err := loadKeyState(filepath.Join(v.dir, "keyslots.json"))
+	if err != nil {
+		log.Error("master key", "err", err)
+		os.Exit(1)
+	}
+	v.keys = keys
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
 	mux.HandleFunc("POST /v1/blobs", v.auth(v.put))
 	mux.HandleFunc("GET /v1/blobs/{sha}", v.auth(v.get))
 	mux.HandleFunc("POST /v1/blobs/{sha}/verify", v.auth(v.verify))
+	mux.HandleFunc("GET /v1/keys", v.auth(v.keyStatus))
+	mux.HandleFunc("POST /v1/keys/unlock", v.auth(v.unlock))
+	mux.HandleFunc("POST /v1/keys/seal", v.auth(v.seal))
+	mux.HandleFunc("POST /v1/keys/slots", v.auth(v.addSlot))
+	mux.HandleFunc("DELETE /v1/keys/slots/{id}", v.auth(v.removeSlot))
+	mux.HandleFunc("POST /v1/keys/recovery", v.auth(v.rotateRecovery))
 
 	addr := env("LISTEN_ADDR", ":9000")
 	log.Info("lumen vault listening", "addr", addr, "dir", v.dir)
@@ -136,6 +143,10 @@ type counter struct{ n int64 }
 func (c *counter) Write(p []byte) (int, error) { c.n += int64(len(p)); return len(p), nil }
 
 func (v *vault) put(w http.ResponseWriter, r *http.Request) {
+	kek, ok := v.kek(w)
+	if !ok {
+		return
+	}
 	tmp, err := os.CreateTemp(filepath.Join(v.dir, "tmp"), "upload-*")
 	if err != nil {
 		httpErr(w, err, http.StatusInternalServerError)
@@ -147,7 +158,7 @@ func (v *vault) put(w http.ResponseWriter, r *http.Request) {
 	s256, s1, m5 := sha256.New(), sha1.New(), md5.New()
 	sniff, count := &sniffer{}, &counter{}
 	src := io.TeeReader(r.Body, io.MultiWriter(s256, s1, m5, sniff, count))
-	if err := vaultcrypto.Encrypt(tmp, src, v.kek); err != nil {
+	if err := vaultcrypto.Encrypt(tmp, src, kek); err != nil {
 		httpErr(w, err, http.StatusBadRequest)
 		return
 	}
@@ -203,13 +214,17 @@ func (v *vault) open(w http.ResponseWriter, r *http.Request) (*os.File, bool) {
 }
 
 func (v *vault) get(w http.ResponseWriter, r *http.Request) {
+	kek, ok := v.kek(w)
+	if !ok {
+		return
+	}
 	f, ok := v.open(w, r)
 	if !ok {
 		return
 	}
 	defer f.Close()
 	w.Header().Set("Content-Type", "application/octet-stream")
-	if err := vaultcrypto.Decrypt(w, f, v.kek); err != nil {
+	if err := v.decrypt(w, f, kek); err != nil {
 		// Headers may already be sent; the client detects the broken stream.
 		slog.Error("decrypt failed", "sha256", r.PathValue("sha"), "err", err)
 		panic(http.ErrAbortHandler)
@@ -217,14 +232,28 @@ func (v *vault) get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (v *vault) verify(w http.ResponseWriter, r *http.Request) {
+	kek, ok := v.kek(w)
+	if !ok {
+		return
+	}
 	f, ok := v.open(w, r)
 	if !ok {
 		return
 	}
 	defer f.Close()
 	h, count := sha256.New(), &counter{}
-	err := vaultcrypto.Decrypt(io.MultiWriter(h, count), f, v.kek)
+	err := v.decrypt(io.MultiWriter(h, count), f, kek)
 	sha := r.PathValue("sha")
+	if errors.Is(err, vaultcrypto.ErrWrongKey) {
+		v.keys.mu.Lock()
+		rotating := v.keys.rotating
+		v.keys.mu.Unlock()
+		if rotating {
+			// Not yet re-encrypted and the old key is unavailable: unreadable, not tampered.
+			jsonErr(w, http.StatusLocked, "re-encryption under the new master key is unfinished")
+			return
+		}
+	}
 	res := map[string]any{"sha256": sha, "size": count.n, "checked_at": time.Now().UTC()}
 	if err != nil {
 		res["ok"], res["error"] = false, err.Error()

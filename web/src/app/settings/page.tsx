@@ -3,8 +3,9 @@ import { KeyRoundIcon, LockIcon, NetworkIcon, ShieldCheckIcon } from "lucide-rea
 
 import { SettingsForm } from "@/components/actions"
 import { PageHeader } from "@/components/page-header"
+import { SecurityKeysCard } from "@/components/security-keys"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { api } from "@/lib/api"
+import { api, vaultStatus } from "@/lib/api"
 import type { Settings } from "@/lib/types"
 
 export const metadata: Metadata = { title: "Settings" }
@@ -22,18 +23,18 @@ const SECURITY = [
   },
   {
     icon: KeyRoundIcon,
-    title: "Back up your master key",
-    text: "LUMEN_MASTER_KEY in your .env file decrypts the vault. Without it the evidence is unrecoverable. Keep a copy offline, separate from your backups.",
+    title: "Hardware-key unlock",
+    text: "With a security key registered, the master key exists only wrapped by your keys and recovery code. The vault starts locked, and unlocking, locking and key changes are recorded in the chain of custody.",
   },
   {
     icon: NetworkIcon,
     title: "Local only",
-    text: "Lumen listens on localhost only and has no login. Do not expose it to a network without adding authentication in front.",
+    text: "Lumen listens on localhost only. Without a security key it has no login, so do not expose it to a network.",
   },
 ]
 
 export default async function SettingsPage() {
-  const settings = await api<Settings>("/api/settings")
+  const [settings, vault] = await Promise.all([api<Settings>("/api/settings"), vaultStatus()])
   return (
     <>
       <PageHeader title="Settings" description="Your identity on the chain of custody and how cases are numbered." />
@@ -47,7 +48,7 @@ export default async function SettingsPage() {
             <SettingsForm initial={settings} />
           </CardContent>
         </Card>
-        <Card className="h-fit">
+        <Card className="h-fit lg:row-span-2">
           <CardHeader>
             <CardTitle>Security model</CardTitle>
             <CardDescription>Lumen {settings.version} · MIT licensed · by Lumen Forensics</CardDescription>
@@ -64,6 +65,7 @@ export default async function SettingsPage() {
             ))}
           </CardContent>
         </Card>
+        {vault && <SecurityKeysCard status={vault} />}
       </div>
     </>
   )

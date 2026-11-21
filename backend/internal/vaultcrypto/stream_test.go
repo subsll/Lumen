@@ -3,6 +3,10 @@ package vaultcrypto
 import (
 	"bytes"
 	"crypto/rand"
+	"errors"
+	"io"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -48,5 +52,46 @@ func TestTamperAndTruncation(t *testing.T) {
 	wrong := make([]byte, 32)
 	if err := Decrypt(&bytes.Buffer{}, bytes.NewReader(blob), wrong); err == nil {
 		t.Fatal("wrong key decrypted")
+	}
+}
+
+func TestRewrap(t *testing.T) {
+	oldKEK, newKEK := make([]byte, 32), make([]byte, 32)
+	rand.Read(oldKEK)
+	rand.Read(newKEK)
+	plain := bytes.Repeat([]byte("evidence "), 20000) // several chunks
+	path := filepath.Join(t.TempDir(), "blob")
+	f, _ := os.Create(path)
+	if err := Encrypt(f, bytes.NewReader(plain), oldKEK); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	before, _ := os.ReadFile(path)
+
+	f, _ = os.OpenFile(path, os.O_RDWR, 0)
+	changed, err := Rewrap(f, oldKEK, newKEK)
+	if err != nil || !changed {
+		t.Fatalf("rewrap: %v %v", changed, err)
+	}
+	if changed, err := Rewrap(f, oldKEK, newKEK); err != nil || changed {
+		t.Fatalf("second rewrap should be a no-op: %v %v", changed, err)
+	}
+	f.Close()
+	after, _ := os.ReadFile(path)
+	if len(after) != len(before) || !bytes.Equal(after[HeaderSize:], before[HeaderSize:]) {
+		t.Fatal("payload changed")
+	}
+
+	var out bytes.Buffer
+	if err := Decrypt(&out, bytes.NewReader(after), newKEK); err != nil || !bytes.Equal(out.Bytes(), plain) {
+		t.Fatalf("new key: %v", err)
+	}
+	if err := Decrypt(io.Discard, bytes.NewReader(after), oldKEK); !errors.Is(err, ErrWrongKey) {
+		t.Fatalf("old key still decrypts: %v", err)
+	}
+	f, _ = os.OpenFile(path, os.O_RDWR, 0)
+	defer f.Close()
+	if _, err := Rewrap(f, make([]byte, 32), make([]byte, 32)); !errors.Is(err, ErrWrongKey) {
+		t.Fatalf("unrelated keys: %v", err)
 	}
 }

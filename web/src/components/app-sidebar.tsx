@@ -7,8 +7,10 @@ import {
   FolderKanbanIcon,
   LayoutDashboardIcon,
   LinkIcon,
+  LockIcon,
   SettingsIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { LumenMark } from "@/components/logo"
 import { SearchCommand } from "@/components/search-command"
@@ -27,6 +29,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
+import { send } from "@/lib/client"
 import type { Case } from "@/lib/types"
 import { STATUS_STYLE } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -42,10 +45,13 @@ export function AppSidebar({
   openCases,
   investigator,
   version,
+  vaultProtected = false,
 }: {
   openCases: Case[]
   investigator: string
   version: string
+  /** A security key is registered, so the vault can be locked. */
+  vaultProtected?: boolean
 }) {
   const pathname = usePathname()
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href))
@@ -118,6 +124,26 @@ export function AppSidebar({
           <SidebarMenuItem>
             <ThemeToggle />
           </SidebarMenuItem>
+          {vaultProtected && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip="Lock vault"
+                onClick={async () => {
+                  try {
+                    await send("POST", "/api/vault/lock")
+                    // Full reload so the root layout swaps the app for the unlock screen.
+                    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+                    window.location.assign("/")
+                  } catch (e) {
+                    toast.error((e as Error).message)
+                  }
+                }}
+              >
+                <LockIcon />
+                <span>Lock vault</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive("/settings")} tooltip="Settings">
               <Link href="/settings">

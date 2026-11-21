@@ -3,10 +3,11 @@ import { Geist, Geist_Mono } from "next/font/google"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { ThemeProvider } from "@/components/theme-provider"
+import { UnlockScreen } from "@/components/unlock-screen"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { api } from "@/lib/api"
+import { api, vaultStatus } from "@/lib/api"
 import type { CasePage, Settings } from "@/lib/types"
 import "./globals.css"
 
@@ -28,21 +29,28 @@ async function loadShell() {
 }
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const { settings, open } = await loadShell()
-  const investigator = [settings.investigator_name, settings.organization].filter(Boolean).join(" · ")
+  const vault = await vaultStatus()
+  // Protected and no session for this browser: show nothing but the unlock screen.
+  const locked = !vault || !vault.authenticated
+  const { settings, open } = locked ? { settings: null, open: [] } : await loadShell()
+  const investigator = settings ? [settings.investigator_name, settings.organization].filter(Boolean).join(" · ") : ""
   return (
     <html lang="en" suppressHydrationWarning className={`${sans.variable} ${mono.variable} antialiased`}>
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <TooltipProvider delayDuration={300}>
+            {locked ? (
+              <UnlockScreen status={vault} />
+            ) : (
             <SidebarProvider>
-              <AppSidebar openCases={open} investigator={investigator} version={settings.version} />
+              <AppSidebar openCases={open} investigator={investigator} version={settings?.version ?? ""} vaultProtected={vault.protected} />
               <SidebarInset>
                 {/* No top bar: on desktop the sidebar collapses via its rail or ⌘B; on phones this opens it. */}
                 <SidebarTrigger className="fixed top-3 left-3 z-20 border bg-background/90 shadow-sm backdrop-blur md:hidden" />
                 <main className="flex flex-1 flex-col gap-6 p-4 pt-14 md:p-6 lg:p-8">{children}</main>
               </SidebarInset>
             </SidebarProvider>
+            )}
           </TooltipProvider>
           <Toaster richColors position="bottom-right" />
         </ThemeProvider>
