@@ -6,7 +6,7 @@ Lumen helps an investigator register, preserve and account for digital evidence.
 fingerprinted with SHA-256, encrypted in an isolated vault, and tracked in a tamper-evident chain of
 custody, from the moment it is collected to the moment it is handed over.
 
-![Lumen dashboard showing open cases, evidence totals, integrity status and the chain of custody](docs/images/dashboard.png)
+![The Lumen dashboard in Safari, showing open cases, evidence totals, integrity status and the chain of custody](docs/images/dashboard.png)
 
 - **Cases.** Open cases, move them through *Intake → Active → Review → Closed → Archived*, keep
   timestamped notes.

@@ -104,7 +104,8 @@ export function AppSidebar({
               <SidebarMenu>
                 {openCases.map((c) => (
                   <SidebarMenuItem key={c.id}>
-                    <SidebarMenuButton asChild isActive={pathname === `/cases/${c.id}`}>
+                    {/* pr-8 keeps long titles clear of the evidence-count badge */}
+                    <SidebarMenuButton asChild isActive={pathname === `/cases/${c.id}`} className="pr-8">
                       <Link href={`/cases/${c.id}`}>
                         <span className={cn("size-2 shrink-0 rounded-full border", STATUS_STYLE[c.status])} />
                         <span className="truncate">{c.title}</span>
